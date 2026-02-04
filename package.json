@@ -1,0 +1,17 @@
+{
+  "name": "teknik-lar",
+  "version": "1.0.0",
+  "description": "Lgr22-aligned Technology teaching platform",
+  "main": "index.tsx",
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-router-dom": "7.13.0",
+    "lucide-react": "0.563.0",
+    "recharts": "3.7.0"
+  },
+  "scripts": {
+    "check-esm": "grep -rnE \"esm\\.sh|unpkg\\.com|skypack\\.dev\" . --exclude-dir=node_modules && (echo 'Error: URL imports detected!' && exit 1) || exit 0",
+    "build": "npm run check-esm && vite build"
+  }
+}
