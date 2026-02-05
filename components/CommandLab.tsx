@@ -1,9 +1,11 @@
+/* PASTE EVERYTHING FROM HERE */
+
 import React, { useEffect, useRef, useState, useCallback, useLayoutEffect, useMemo } from 'react';
 import { CommandLabBlock, ParameterDefinition, Language } from '../types';
 import { executeCode, parseCommandParams, updateCodeParams } from '../services/sandbox';
 import { COMMAND_REGISTRY } from '../services/commandRegistry';
 import { UI_TRANSLATIONS } from '../constants';
-import { Copy, Code2, Sliders, Minus, Plus, Check, Palette } from 'lucide-react';
+import { Copy, Code2, Sliders, Bug, ChevronDown, Minus, Plus, Check, Palette } from 'lucide-react';
 
 interface Props {
   block: CommandLabBlock;
@@ -118,6 +120,7 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
   const [copied, setCopied] = useState(false);
   const t = UI_TRANSLATIONS[lang];
 
+  // Sync state with prop if it changes externally (and not currently dragging)
   useEffect(() => {
     if (!isDraggingSV && !isDraggingH) {
       setHsv(rgbToHsv(hexToRgb(value)));
@@ -211,29 +214,29 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
       </div>
       <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 shadow-inner">
         <canvas
-          ref={svCanvasRef} width={300} height={225}
-          className="w-full h-full cursor-crosshair block touch-none"
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingSV(true); updateSV(e); }}
-          onPointerMove={(e) => isDraggingSV && updateSV(e)}
-          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingSV(false); }}
+            ref={svCanvasRef} width={300} height={225}
+            className="w-full h-full cursor-crosshair block touch-none"
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingSV(true); updateSV(e); }}
+            onPointerMove={(e) => isDraggingSV && updateSV(e)}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingSV(false); }}
         />
       </div>
       <div className="relative h-5 rounded-full overflow-hidden border border-slate-200 shadow-sm">
         <canvas
-          ref={hueCanvasRef} width={300} height={20}
-          className="w-full h-full cursor-ew-resize block touch-none"
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingH(true); updateH(e); }}
-          onPointerMove={(e) => isDraggingH && updateH(e)}
-          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingH(false); }}
+            ref={hueCanvasRef} width={300} height={20}
+            className="w-full h-full cursor-ew-resize block touch-none"
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingH(true); updateH(e); }}
+            onPointerMove={(e) => isDraggingH && updateH(e)}
+            onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingH(false); }}
         />
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 h-9 rounded-md shadow-inner border border-slate-200 flex items-center justify-center text-[10px] font-mono font-bold" style={{ backgroundColor: hex, color: getContrastYIQ(hex) }}>
-          {hex}
+            {hex}
         </div>
         <button onClick={handleCopy} className="h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-md text-slate-500 hover:text-brand-600 transition flex items-center gap-1 shadow-sm">
-          {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-          <span className="text-[10px] font-bold uppercase">{copied ? t.copied : t.copy}</span>
+            {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+            <span className="text-[10px] font-bold uppercase">{copied ? t.copied : t.copy}</span>
         </button>
       </div>
     </div>
@@ -244,24 +247,27 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
 
 const getParamLocations = (code: string, params: ParameterDefinition[], lang: string) => {
   const locations: { label: string, start: number, end: number }[] = [];
-
+  
+  // Find start of args
   const openParenIndex = code.indexOf('(');
   if (openParenIndex === -1) return [];
-
+  
   let currentIndex = openParenIndex + 1;
-
+  
   for (let i = 0; i < params.length; i++) {
+    // 1. Skip leading whitespace
     while (code[currentIndex] === ' ' && currentIndex < code.length) currentIndex++;
-
+    
     const start = currentIndex;
-
+    
+    // 2. Find end of this arg
     let inQuote = false;
     let quoteChar = '';
     let end = start;
-
+    
     while (end < code.length) {
       const char = code[end];
-
+      
       if (inQuote) {
         if (char === quoteChar) inQuote = false;
       } else {
@@ -269,14 +275,17 @@ const getParamLocations = (code: string, params: ParameterDefinition[], lang: st
           inQuote = true;
           quoteChar = char;
         } else if (char === ',' || char === ')') {
-          break;
+          break; // Found delimiter
         }
       }
       end++;
     }
-
+    
+    // Trim trailing whitespace from the token range
     let actualEnd = end;
-    while (actualEnd > start && code[actualEnd - 1] === ' ') actualEnd--;
+    while (actualEnd > start && code[actualEnd - 1] === ' ') {
+      actualEnd--;
+    }
 
     if (actualEnd > start) {
       const paramName = params[i].name;
@@ -286,15 +295,16 @@ const getParamLocations = (code: string, params: ParameterDefinition[], lang: st
 
       locations.push({
         label: translatedLabel,
-        start,
+        start: start,
         end: actualEnd
       });
     }
-
+    
+    // Setup for next
     currentIndex = end;
     if (code[currentIndex] === ',') currentIndex++;
   }
-
+  
   return locations;
 };
 
@@ -313,9 +323,12 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
   const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
   const [paramSnapshot, setParamSnapshot] = useState<(string | number)[]>([]);
 
+  const [showDebug, setShowDebug] = useState(false);
   const [sigFontSize, setSigFontSize] = useState(() => parseInt(localStorage.getItem('kodlab_sig_font') || '12'));
 
+  // Label Overlay Refs
   const overlayRef = useRef<HTMLDivElement>(null);
+  // Measurement ref for char width
   const measureRef = useRef<HTMLSpanElement>(null);
   const [charWidth, setCharWidth] = useState(0);
 
@@ -329,41 +342,49 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
 
   const def = COMMAND_REGISTRY[selectedCommandId];
 
+  // Compute parameter locations and layout for visual enhancement
   const labelLayout = useMemo(() => {
     if (code.includes('\n') || charWidth === 0) return [];
-
+    
     const locations = getParamLocations(code, def.params, lang);
     if (locations.length === 0) return [];
 
+    // Measure label widths with a canvas to match font-medium sans-serif
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return [];
-
+    
+    // Approximate the font stack used by Tailwind's font-sans at font-medium weight
     ctx.font = `500 ${sigFontSize}px ui-sans-serif, system-ui, sans-serif`;
 
     const items = locations.map(loc => {
-      const textMetrics = ctx.measureText(loc.label);
-      const labelWidth = textMetrics.width;
-
-      const tokenCenter = 16 + (loc.start * charWidth) + ((loc.end - loc.start) * charWidth / 2);
-      let left = tokenCenter - (labelWidth / 2);
-
-      return {
-        ...loc,
-        width: labelWidth,
-        left
-      };
+        const textMetrics = ctx.measureText(loc.label);
+        const labelWidth = textMetrics.width;
+        
+        // Calculate center position based on token location and monospace char width
+        // centerPixel = Left Padding (16px) + (Start Index * Char Width) + (Token Length * Char Width / 2)
+        const tokenCenter = 16 + (loc.start * charWidth) + ((loc.end - loc.start) * charWidth / 2);
+        let left = tokenCenter - (labelWidth / 2);
+        
+        return {
+            ...loc,
+            width: labelWidth,
+            left: left
+        };
     });
 
-    const MIN_GAP = 8;
+    // Collision avoidance: Enforce minimum gap
+    const MIN_GAP = 8; // pixels
+    
     for (let i = 1; i < items.length; i++) {
-      const prev = items[i - 1];
-      const curr = items[i];
-
-      const prevRight = prev.left + prev.width;
-      if (curr.left < prevRight + MIN_GAP) {
-        curr.left = prevRight + MIN_GAP;
-      }
+        const prev = items[i-1];
+        const curr = items[i];
+        
+        const prevRight = prev.left + prev.width;
+        if (curr.left < prevRight + MIN_GAP) {
+            // Shift current label to the right
+            curr.left = prevRight + MIN_GAP;
+        }
     }
 
     return items;
@@ -373,19 +394,21 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
     latestStateRef.current = { code, previewCode, def: COMMAND_REGISTRY[selectedCommandId] };
   }, [code, previewCode, selectedCommandId]);
 
+  // Measure char width whenever font size changes
   useLayoutEffect(() => {
     if (measureRef.current) {
-      const width = measureRef.current.getBoundingClientRect().width;
-      setCharWidth(width / 10);
+       const width = measureRef.current.getBoundingClientRect().width;
+       setCharWidth(width / 10);
     }
   }, [sigFontSize]);
 
+  // Continuous deterministic redraw loop
   useLayoutEffect(() => {
     let frameId: number;
     const loop = () => {
       const canvas = canvasRef.current;
       if (canvas) {
-        const { code: currentCode, previewCode: currentPreview } = latestStateRef.current;
+        const { code: currentCode, previewCode: currentPreview, def: currentDef } = latestStateRef.current;
         const dpr = window.devicePixelRatio || 1;
         if (canvas.width !== TOTAL_LOGICAL_SIZE * dpr || canvas.height !== TOTAL_LOGICAL_SIZE * dpr) {
           canvas.width = TOTAL_LOGICAL_SIZE * dpr;
@@ -401,18 +424,14 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
           ctx.fillRect(0, 0, TOTAL_LOGICAL_SIZE, TOTAL_LOGICAL_SIZE);
           ctx.translate(MARGIN, MARGIN);
 
+          // Draw Grid
           const step = 100;
-          ctx.lineWidth = 1;
-          ctx.font = 'bold 10px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
+          ctx.lineWidth = 1; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           for (let i = 0; i <= CONTENT_SIZE; i += step) {
             ctx.strokeStyle = i === 0 || i === CONTENT_SIZE ? '#cbd5e1' : '#f1f5f9';
             ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, CONTENT_SIZE); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(CONTENT_SIZE, i); ctx.stroke();
           }
-
           ctx.fillStyle = '#64748b';
           for (let i = step; i <= CONTENT_SIZE; i += step) {
             ctx.fillText(i.toString(), i, -15);
@@ -424,7 +443,7 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
             executeCode(currentPreview || currentCode, ctx, CONTENT_SIZE, CONTENT_SIZE);
             drawCountRef.current++;
           } catch (err: any) {
-            // ignore draw errors
+             // Loop continues
           }
         }
       }
@@ -459,56 +478,25 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
     return { x: ((e.clientX - rect.left) * scale) - MARGIN, y: ((e.clientY - rect.top) * scale) - MARGIN };
   };
 
-  // Map draggable vertex/endpoint handles (from commandRegistry.hitTest) to parameter pairs.
-  // Enables moving endpoints/vertices for LINE/TRIANGLE on both mouse + touch (pointer events).
-  const POINT_HANDLE_TO_PARAMS: Record<string, Record<string, { x: string; y: string }>> = {
-    line: {
-      p1: { x: 'x1', y: 'y1' },
-      p2: { x: 'x2', y: 'y2' },
-      start: { x: 'x1', y: 'y1' },
-      end: { x: 'x2', y: 'y2' },
-    },
-    triangle: {
-      p1: { x: 'x1', y: 'y1' },
-      p2: { x: 'x2', y: 'y2' },
-      p3: { x: 'x3', y: 'y3' },
-      a: { x: 'x1', y: 'y1' },
-      b: { x: 'x2', y: 'y2' },
-      c: { x: 'x3', y: 'y3' },
-    },
-  };
-
-  const resolvePointHandle = useCallback((commandId: string, handleId: string): { x: string; y: string } | null => {
-    const cmdMap = POINT_HANDLE_TO_PARAMS[commandId];
-    if (!cmdMap) return null;
-    return cmdMap[handleId] ?? null;
-  }, []);
-
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (readOnly) return;
-
-    // Prevent page scroll/selection while dragging (important on iPad).
-    e.preventDefault();
-
     e.currentTarget.setPointerCapture(e.pointerId);
-
     const { x, y } = getContentCoordinates(e);
-
     const values: Record<string, any> = {};
-    def.params.forEach((p, i) => (values[p.name] = parsedParams[i] ?? p.defaultValue));
-
+    def.params.forEach((p, i) => values[p.name] = parsedParams[i] ?? p.defaultValue);
     const hitId = def.hitTest(x, y, values);
-    if (hitId) {
-      setDragId(hitId);
-      setDragStart({ x, y });
-      setParamSnapshot([...parsedParams]);
+    if (hitId) { 
+        setDragId(hitId); 
+        setDragStart({ x, y }); 
+        setParamSnapshot([...parsedParams]); 
     }
   };
 
+  // ✅ FIX: support point:... and flexible resize:* handles
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const { x, y } = getContentCoordinates(e);
 
-    // Hover cursor
+    // Hover cursor feedback (no active drag)
     if (!dragId || !dragStart) {
       if (def && canvasRef.current) {
         const values: Record<string, any> = {};
@@ -518,53 +506,55 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
       return;
     }
 
-    e.preventDefault();
-
     const dx = x - dragStart.x;
     const dy = y - dragStart.y;
 
     const currentParams = [...paramSnapshot];
 
-    const updateParamByName = (name: string | undefined, delta: number) => {
+    const updateP = (name: string | undefined, delta: number) => {
       if (!name) return;
       const pDef = def.params.find((p) => p.name === name);
       if (!pDef) return;
-      const base = (paramSnapshot[pDef.index] as number) ?? 0;
+      const base = Number(paramSnapshot[pDef.index] ?? 0);
       currentParams[pDef.index] = Math.round(base + delta);
     };
 
-    // 1) Vertex / endpoint dragging (LINE / TRIANGLE)
-    const pointHandle = resolvePointHandle(selectedCommandId, dragId);
-    if (pointHandle) {
-      updateParamByName(pointHandle.x, dx);
-      updateParamByName(pointHandle.y, dy);
-      setCode(updateCodeParams(code, def.functionName, currentParams));
-      return;
-    }
-
-    // 2) Whole-shape dragging
+    // 1) Move the whole shape (most commands)
     if (dragId === 'body' && def.interaction.position) {
-      updateParamByName(def.interaction.position.x, dx);
-      updateParamByName(def.interaction.position.y, dy);
-      setCode(updateCodeParams(code, def.functionName, currentParams));
-      return;
+      updateP(def.interaction.position.x, dx);
+      updateP(def.interaction.position.y, dy);
+    }
+    // 2) Move a specific point/vertex (LINE/TRIANGLE etc.)
+    else if (dragId.startsWith('point:') && def.interaction.points) {
+      const pointId = dragId.split(':')[1];
+      const pointDef = def.interaction.points.find((p) => p.id === pointId);
+      if (pointDef) {
+        updateP(pointDef.x, dx);
+        updateP(pointDef.y, dy);
+      }
+    }
+    // 3) Resize / thickness / angle / font size (flexible handle IDs)
+    else if (dragId === 'resize' && selectedCommandId === 'circle') {
+      // legacy circle handle
+      updateP('r', dx);
+    }
+    else if (dragId.startsWith('resize')) {
+      // Rectangle-like (resize:w, resize:h, resize:wh etc.)
+      if (dragId.includes('w')) updateP('w', dx);
+      if (dragId.includes('h')) updateP('h', dy);
+      if (dragId.includes('r')) updateP('r', dx);
+
+      // Text size (resize:sz)
+      if (dragId.includes('sz')) updateP('sz', -dy);
+
+      // Stroke thickness (resize:th)
+      if (dragId.includes('th')) updateP('th', -dy);
+
+      // Arc angle (resize:deg)
+      if (dragId.includes('deg')) updateP('deg', dx);
     }
 
-    // 3) Resize handles
-    if (dragId === 'resize' && selectedCommandId === 'circle') {
-      updateParamByName('r', dx);
-      setCode(updateCodeParams(code, def.functionName, currentParams));
-      return;
-    }
-
-    if (dragId.startsWith('resize')) {
-      if (dragId.includes('w')) updateParamByName('w', dx);
-      if (dragId.includes('h')) updateParamByName('h', dy);
-      if (dragId.includes('r')) updateParamByName('r', dx);
-      if (dragId.includes('th')) updateParamByName('th', -dy);
-      setCode(updateCodeParams(code, def.functionName, currentParams));
-      return;
-    }
+    setCode(updateCodeParams(code, def.functionName, currentParams));
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -572,7 +562,6 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
     setDragId(null);
-    setDragStart(null);
   };
 
   const handleParamChange = (index: number, value: string | number) => {
@@ -583,26 +572,27 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
     setPreviewCode(null);
   };
 
+  // Calculate dynamic padding to ensure labels fit comfortably
   const textareaPadding = Math.max(32, sigFontSize + 16);
+  // Calculate label top position relative to container
   const labelTop = textareaPadding - sigFontSize - 2;
 
   return (
     <div className="w-full my-8 font-sans">
       <div data-draw-count={drawCountRef.current} className="hidden" aria-hidden="true" />
-
       <div className="flex flex-col lg:grid lg:grid-cols-[520px_minmax(0,1fr)] gap-6 items-start">
         <div className="flex flex-col gap-6 w-full lg:h-[682px]">
           <Card className="flex-none shadow-sm border-slate-200">
             <SectionHeader icon={Code2} title={t.jsCode} action={
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-white border border-slate-200 rounded-md overflow-hidden mr-2">
-                  <button onClick={() => setSigFontSize(Math.max(8, sigFontSize - 2))} className="p-1.5 hover:bg-slate-50 border-r border-slate-200" title={t.decreaseText}>
-                    <Minus size={12} />
-                  </button>
-                  <span className="px-2 text-[10px] font-bold text-slate-500 w-10 text-center">{sigFontSize}px</span>
-                  <button onClick={() => setSigFontSize(Math.min(32, sigFontSize + 2))} className="p-1.5 hover:bg-slate-50 border-l border-slate-200" title={t.increaseText}>
-                    <Plus size={12} />
-                  </button>
+                    <button onClick={() => setSigFontSize(Math.max(8, sigFontSize - 2))} className="p-1.5 hover:bg-slate-50 border-r border-slate-200" title={t.decreaseText}>
+                        <Minus size={12} />
+                    </button>
+                    <span className="px-2 text-[10px] font-bold text-slate-500 w-10 text-center">{sigFontSize}px</span>
+                    <button onClick={() => setSigFontSize(Math.min(32, sigFontSize + 2))} className="p-1.5 hover:bg-slate-50 border-l border-slate-200" title={t.increaseText}>
+                        <Plus size={12} />
+                    </button>
                 </div>
                 <select value={selectedCommandId} onChange={(e) => handleCommandSwitch(e.target.value)} className="appearance-none bg-brand-50 text-brand-700 text-xs font-bold pl-3 pr-8 py-1.5 rounded-md border border-brand-100 focus:outline-none cursor-pointer">
                   {Object.values(COMMAND_REGISTRY).map(c => (<option key={c.id} value={c.id}>{c.functionName.toUpperCase()}</option>))}
@@ -610,114 +600,88 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
               </div>
             } />
             <div className="relative bg-slate-900 group" dir="ltr">
+              {/* Measurement Span */}
               <span ref={measureRef} className="font-mono absolute opacity-0 pointer-events-none -z-10" style={{ fontSize: `${sigFontSize}px` }}>0000000000</span>
 
-              <div className="absolute top-0 left-0 right-0 h-full pointer-events-none select-none overflow-hidden z-10" aria-hidden="true">
-                <div ref={overlayRef} className="absolute top-0 left-0 w-full h-full">
-                  {labelLayout.map((item, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        position: 'absolute',
-                        left: `${item.left}px`,
-                        top: `${labelTop}px`,
-                        fontSize: `${sigFontSize}px`,
-                        width: `${item.width}px`,
-                        textAlign: 'center'
-                      }}
-                      className="text-white/90 font-medium leading-none"
-                    >
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
+              {/* Parameter Label Overlay */}
+              <div 
+                className="absolute top-0 left-0 right-0 h-full pointer-events-none select-none overflow-hidden z-10" 
+                aria-hidden="true"
+              >
+                 <div 
+                    ref={overlayRef}
+                    className="absolute top-0 left-0 w-full h-full"
+                 >
+                    {labelLayout.map((item, i) => (
+                         <div key={i} style={{ 
+                            position: 'absolute', 
+                            left: `${item.left}px`,
+                            top: `${labelTop}px`,
+                            fontSize: `${sigFontSize}px`,
+                            width: `${item.width}px`,
+                            textAlign: 'center'
+                         }}
+                         className="text-white/90 font-medium leading-none"
+                         >
+                            {item.label}
+                         </div>
+                    ))}
+                 </div>
               </div>
 
-              <textarea
-                className="w-full h-40 p-4 font-mono bg-transparent text-emerald-400 focus:outline-none resize-none code-scroll relative z-0"
-                style={{
-                  fontSize: `${sigFontSize}px`,
-                  paddingTop: `${textareaPadding}px`,
-                  lineHeight: '1.5'
-                }}
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
+              <textarea 
+                className="w-full h-40 p-4 font-mono bg-transparent text-emerald-400 focus:outline-none resize-none code-scroll relative z-0" 
+                style={{ 
+                    fontSize: `${sigFontSize}px`, 
+                    paddingTop: `${textareaPadding}px`, 
+                    lineHeight: '1.5'
+                }} 
+                value={code} 
+                onChange={(e) => setCode(e.target.value)} 
                 onScroll={handleScroll}
-                spellCheck={false}
+                spellCheck={false} 
               />
-
               {error && <div className="absolute bottom-0 inset-x-0 bg-red-500/90 text-white text-xs px-3 py-2 z-20">Line 1: {error}</div>}
             </div>
           </Card>
-
           <Card className="flex-1 min-h-[400px] lg:min-h-0 shadow-sm border-slate-200 flex flex-col">
             <SectionHeader icon={Sliders} title={t.parameters} />
             <div className="p-5 space-y-6 overflow-y-auto flex-1 code-scroll">
               {def.params.map((param) => {
                 const currentVal = parsedParams[param.index];
                 if (currentVal === undefined) return null;
-
                 const tKey = `param_${param.name}`;
                 // @ts-ignore
                 const label = UI_TRANSLATIONS[lang]?.[tKey] || param.label;
-
                 return (
                   <div key={param.name}>
                     <div className="flex justify-between items-end mb-2"><Label>{label}</Label></div>
-
-                    {param.type === 'number' && (
-                      <input
-                        type="range"
-                        min={param.min ?? -100}
-                        max={param.max ?? 700}
-                        step={param.step || 1}
-                        value={currentVal as number}
-                        onChange={(e) => handleParamChange(param.index, parseInt(e.target.value))}
-                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-600"
-                      />
-                    )}
-
-                    {param.type === 'color' && (
-                      <CustomColorPicker
-                        value={currentVal as string}
-                        onChange={(hex) => handleParamChange(param.index, hex)}
-                        lang={lang}
-                      />
-                    )}
-
-                    {param.type === 'string' && (
-                      <input
-                        type="text"
-                        value={currentVal}
-                        onChange={(e) => handleParamChange(param.index, e.target.value)}
-                        className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-                      />
-                    )}
+                    {param.type === 'number' && <input type="range" min={param.min ?? -100} max={param.max ?? 700} step={param.step || 1} value={currentVal as number} onChange={(e) => handleParamChange(param.index, parseInt(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-600" />}
+                    {param.type === 'color' && <CustomColorPicker value={currentVal as string} onChange={(hex) => handleParamChange(param.index, hex)} lang={lang} />}
+                    {param.type === 'string' && <input type="text" value={currentVal} onChange={(e) => handleParamChange(param.index, e.target.value)} className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500" />}
                   </div>
                 );
               })}
             </div>
           </Card>
         </div>
-
         <div className="flex justify-center lg:justify-start items-start w-full h-full overflow-visible p-1">
           <div className="relative flex-shrink-0 rounded-xl shadow-2xl border border-slate-200 bg-white">
-            <canvas
-              ref={canvasRef}
-              style={{
-                width: `${TOTAL_LOGICAL_SIZE}px`,
+            <canvas 
+              ref={canvasRef} 
+              style={{ 
+                width: `${TOTAL_LOGICAL_SIZE}px`, 
                 height: `${TOTAL_LOGICAL_SIZE}px`,
                 touchAction: 'none',
                 userSelect: 'none',
                 WebkitUserSelect: 'none'
-              }}
-              className="block bg-white rounded-xl"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
+              }} 
+              className="block bg-white rounded-xl" 
+              onPointerDown={handlePointerDown} 
+              onPointerMove={handlePointerMove} 
+              onPointerUp={handlePointerUp} 
+              onPointerCancel={handlePointerUp} 
             />
-
             <div className="absolute top-4 right-4 flex gap-2 pointer-events-none">
               <div className="bg-slate-900/5 backdrop-blur text-slate-500 text-[10px] font-bold px-3 py-1.5 rounded-full border border-white/20">600 x 600 {t.canvasLabel}</div>
             </div>
@@ -729,3 +693,5 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
 };
 
 export default CommandLab;
+
+/* PASTE EVERYTHING UNTIL HERE */
