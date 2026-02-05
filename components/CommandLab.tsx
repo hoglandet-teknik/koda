@@ -135,8 +135,8 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     const { width, height } = canvas;
+
     ctx.clearRect(0, 0, width, height);
 
     const hueRgb = hsvToRgb(hsv.h, 1, 1);
@@ -163,6 +163,7 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
     ctx.beginPath();
     ctx.arc(x, y, 6, 0, Math.PI * 2);
     ctx.stroke();
+
     ctx.strokeStyle = hsv.v > 0.5 ? 'white' : 'black';
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -173,8 +174,8 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     const { width, height } = canvas;
+
     const grad = ctx.createLinearGradient(0, 0, width, 0);
     for (let i = 0; i <= 360; i += 30) {
       const { r, g, b } = hsvToRgb(i, 1, 1);
@@ -227,7 +228,7 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.colorPalette}</span>
         </div>
         <div className="text-[7px] font-mono text-slate-400 uppercase text-right leading-tight">
-          H:{hsv.h.toFixed(0)} S:{(hsv.s*100).toFixed(0)}% V:{(hsv.v*100).toFixed(0)}%<br/>
+          H:{hsv.h.toFixed(0)} S:{(hsv.s * 100).toFixed(0)}% V:{(hsv.v * 100).toFixed(0)}%<br />
           RGB({rgb.r},{rgb.g},{rgb.b})
         </div>
       </div>
@@ -238,10 +239,20 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
           width={300}
           height={225}
           className="w-full h-full cursor-crosshair block touch-none"
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingSV(true); updateSV(e); }}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setIsDraggingSV(true);
+            updateSV(e);
+          }}
           onPointerMove={(e) => isDraggingSV && updateSV(e)}
-          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingSV(false); }}
-          onPointerCancel={(e) => { try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {} setIsDraggingSV(false); }}
+          onPointerUp={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+            setIsDraggingSV(false);
+          }}
+          onPointerCancel={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+            setIsDraggingSV(false);
+          }}
         />
       </div>
 
@@ -251,10 +262,20 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
           width={300}
           height={20}
           className="w-full h-full cursor-ew-resize block touch-none"
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setIsDraggingH(true); updateH(e); }}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setIsDraggingH(true);
+            updateH(e);
+          }}
           onPointerMove={(e) => isDraggingH && updateH(e)}
-          onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); setIsDraggingH(false); }}
-          onPointerCancel={(e) => { try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {} setIsDraggingH(false); }}
+          onPointerUp={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+            setIsDraggingH(false);
+          }}
+          onPointerCancel={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+            setIsDraggingH(false);
+          }}
         />
       </div>
 
@@ -277,11 +298,10 @@ const CustomColorPicker: React.FC<ColorPickerProps> = ({ value, onChange, lang }
   );
 };
 
-// --- Lab Implementation ---
+// --- Label Overlay helper ---
 
 const getParamLocations = (code: string, params: ParameterDefinition[], lang: string) => {
-  const locations: { label: string, start: number, end: number }[] = [];
-
+  const locations: { label: string; start: number; end: number }[] = [];
   const openParenIndex = code.indexOf('(');
   if (openParenIndex === -1) return [];
 
@@ -297,7 +317,6 @@ const getParamLocations = (code: string, params: ParameterDefinition[], lang: st
 
     while (end < code.length) {
       const char = code[end];
-
       if (inQuote) {
         if (char === quoteChar) inQuote = false;
       } else {
@@ -330,11 +349,39 @@ const getParamLocations = (code: string, params: ParameterDefinition[], lang: st
   return locations;
 };
 
+// --- IMPORTANT: Handle mapping for LINE + TRIANGLE point dragging ---
+// These are the most common IDs returned by hitTest implementations.
+const POINT_HANDLE_TO_PARAMS: Record<string, Record<string, { x: string; y: string }>> = {
+  line: {
+    p1: { x: 'x1', y: 'y1' },
+    p2: { x: 'x2', y: 'y2' },
+    start: { x: 'x1', y: 'y1' },
+    end: { x: 'x2', y: 'y2' },
+    a: { x: 'x1', y: 'y1' },
+    b: { x: 'x2', y: 'y2' },
+  },
+  triangle: {
+    p1: { x: 'x1', y: 'y1' },
+    p2: { x: 'x2', y: 'y2' },
+    p3: { x: 'x3', y: 'y3' },
+    a: { x: 'x1', y: 'y1' },
+    b: { x: 'x2', y: 'y2' },
+    c: { x: 'x3', y: 'y3' },
+  },
+};
+
+const resolvePointHandle = (commandId: string, handleId: string) => {
+  const cmdMap = POINT_HANDLE_TO_PARAMS[commandId];
+  if (!cmdMap) return null;
+  return cmdMap[handleId] ?? null;
+};
+
 const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) => {
   const [selectedCommandId, setSelectedCommandId] = useState(block.targetCommandId || 'circle');
   const [code, setCode] = useState(block.initialCode);
   const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [parsedParams, setParsedParams] = useState<(string | number)[]>([]);
 
@@ -342,42 +389,16 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
   const latestStateRef = useRef({ code, previewCode, def: COMMAND_REGISTRY[selectedCommandId] });
 
   const [dragId, setDragId] = useState<string | null>(null);
-  const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [paramSnapshot, setParamSnapshot] = useState<(string | number)[]>([]);
 
   const [sigFontSize, setSigFontSize] = useState(() => parseInt(localStorage.getItem('kodlab_sig_font') || '12'));
 
-  // Label Overlay Refs
   const overlayRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
   const [charWidth, setCharWidth] = useState(0);
 
   const t = UI_TRANSLATIONS[lang];
-  const def = COMMAND_REGISTRY[selectedCommandId];
-
-  // ✅ Handle-id → param-pairs mapping for point dragging (LINE/TRIANGLE)
-  const POINT_HANDLE_TO_PARAMS: Record<string, Record<string, { x: string; y: string }>> = useMemo(() => ({
-    line: {
-      p1: { x: "x1", y: "y1" },
-      p2: { x: "x2", y: "y2" },
-      start: { x: "x1", y: "y1" },
-      end: { x: "x2", y: "y2" },
-    },
-    triangle: {
-      p1: { x: "x1", y: "y1" },
-      p2: { x: "x2", y: "y2" },
-      p3: { x: "x3", y: "y3" },
-      a: { x: "x1", y: "y1" },
-      b: { x: "x2", y: "y2" },
-      c: { x: "x3", y: "y3" },
-    },
-  }), []);
-
-  const resolvePointHandle = useCallback((commandId: string, handleId: string): { x: string; y: string } | null => {
-    const cmdMap = POINT_HANDLE_TO_PARAMS[commandId];
-    if (!cmdMap) return null;
-    return cmdMap[handleId] ?? null;
-  }, [POINT_HANDLE_TO_PARAMS]);
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (overlayRef.current) {
@@ -385,21 +406,24 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
     }
   };
 
+  const def = COMMAND_REGISTRY[selectedCommandId];
+
   const labelLayout = useMemo(() => {
     if (code.includes('\n') || charWidth === 0) return [];
 
     const locations = getParamLocations(code, def.params, lang);
     if (locations.length === 0) return [];
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
     if (!ctx) return [];
 
     ctx.font = `500 ${sigFontSize}px ui-sans-serif, system-ui, sans-serif`;
 
-    const items = locations.map(loc => {
+    const items = locations.map((loc) => {
       const textMetrics = ctx.measureText(loc.label);
       const labelWidth = textMetrics.width;
+
       const tokenCenter = 16 + (loc.start * charWidth) + ((loc.end - loc.start) * charWidth / 2);
       let left = tokenCenter - (labelWidth / 2);
 
@@ -411,9 +435,7 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
       const prev = items[i - 1];
       const curr = items[i];
       const prevRight = prev.left + prev.width;
-      if (curr.left < prevRight + MIN_GAP) {
-        curr.left = prevRight + MIN_GAP;
-      }
+      if (curr.left < prevRight + MIN_GAP) curr.left = prevRight + MIN_GAP;
     }
 
     return items;
@@ -432,10 +454,11 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
 
   useLayoutEffect(() => {
     let frameId: number;
+
     const loop = () => {
       const canvas = canvasRef.current;
       if (canvas) {
-        const { code: currentCode, previewCode: currentPreview, def: currentDef } = latestStateRef.current;
+        const { code: currentCode, previewCode: currentPreview } = latestStateRef.current;
         const dpr = window.devicePixelRatio || 1;
 
         if (canvas.width !== TOTAL_LOGICAL_SIZE * dpr || canvas.height !== TOTAL_LOGICAL_SIZE * dpr) {
@@ -447,11 +470,9 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
 
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // @ts-ignore
-          if (typeof ctx.resetTransform === 'function') ctx.resetTransform();
-          else ctx.setTransform(1, 0, 0, 1, 0, 0);
-
+          ctx.resetTransform();
           ctx.scale(dpr, dpr);
+
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, TOTAL_LOGICAL_SIZE, TOTAL_LOGICAL_SIZE);
           ctx.translate(MARGIN, MARGIN);
@@ -473,16 +494,17 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
             ctx.fillText(i.toString(), i, -15);
             ctx.fillText(i.toString(), -20, i);
           }
-          ctx.fillText("0", -10, -10);
+          ctx.fillText('0', -10, -10);
 
           try {
             executeCode(currentPreview || currentCode, ctx, CONTENT_SIZE, CONTENT_SIZE);
             drawCountRef.current++;
-          } catch (err: any) {
-            // keep rendering loop alive
+          } catch {
+            // keep loop alive
           }
         }
       }
+
       frameId = requestAnimationFrame(loop);
     };
 
@@ -502,7 +524,9 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
   const handleCommandSwitch = (newId: string) => {
     const newDef = COMMAND_REGISTRY[newId];
     if (!newDef) return;
-    const args = newDef.params.map(p => typeof p.defaultValue === 'string' ? `"${p.defaultValue}"` : p.defaultValue).join(', ');
+    const args = newDef.params
+      .map((p) => (typeof p.defaultValue === 'string' ? `"${p.defaultValue}"` : p.defaultValue))
+      .join(', ');
     setSelectedCommandId(newId);
     setCode(`${newDef.functionName}(${args});`);
     setPreviewCode(null);
@@ -514,14 +538,32 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
     const scale = TOTAL_LOGICAL_SIZE / rect.width;
     return {
       x: ((e.clientX - rect.left) * scale) - MARGIN,
-      y: ((e.clientY - rect.top) * scale) - MARGIN
+      y: ((e.clientY - rect.top) * scale) - MARGIN,
     };
   };
+
+  const updateParamByName = useCallback(
+    (paramsArray: (string | number)[], name: string, nextVal: number) => {
+      const pDef = def.params.find((p) => p.name === name);
+      if (!pDef) return;
+      paramsArray[pDef.index] = Math.round(nextVal);
+    },
+    [def.params]
+  );
+
+  const getParamValueByName = useCallback(
+    (paramsArray: (string | number)[], name: string) => {
+      const pDef = def.params.find((p) => p.name === name);
+      if (!pDef) return null;
+      const v = paramsArray[pDef.index];
+      return typeof v === 'number' ? v : null;
+    },
+    [def.params]
+  );
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (readOnly) return;
 
-    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
 
     const { x, y } = getContentCoordinates(e);
@@ -530,7 +572,6 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
     def.params.forEach((p, i) => (values[p.name] = parsedParams[i] ?? p.defaultValue));
 
     const hitId = def.hitTest(x, y, values);
-
     if (hitId) {
       setDragId(hitId);
       setDragStart({ x, y });
@@ -546,56 +587,110 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
       if (def && canvasRef.current) {
         const values: Record<string, any> = {};
         def.params.forEach((p, i) => (values[p.name] = parsedParams[i] ?? p.defaultValue));
-        canvasRef.current.style.cursor = def.hitTest(x, y, values) ? 'crosshair' : 'default';
+        const hoverHit = def.hitTest(x, y, values);
+        canvasRef.current.style.cursor = hoverHit ? 'crosshair' : 'default';
       }
       return;
     }
-
-    e.preventDefault();
 
     const dx = x - dragStart.x;
     const dy = y - dragStart.y;
 
     const currentParams = [...paramSnapshot];
 
-    const updateP = (name: string | undefined, delta: number) => {
-      const pDef = def.params.find(p => p.name === name);
-      if (!pDef) return;
-      const base = (paramSnapshot[pDef.index] as number) ?? 0;
-      currentParams[pDef.index] = Math.round(base + delta);
-    };
-
-    // ✅ NEW: point handle dragging for LINE + TRIANGLE (mouse + touch)
-    const point = resolvePointHandle(selectedCommandId, dragId);
-    if (point) {
-      updateP(point.x, dx);
-      updateP(point.y, dy);
+    // 1) LINE/TRIANGLE: drag specific point handles (mouse + touch)
+    const pointMap = resolvePointHandle(selectedCommandId, dragId);
+    if (pointMap) {
+      const x0 = getParamValueByName(paramSnapshot, pointMap.x) ?? 0;
+      const y0 = getParamValueByName(paramSnapshot, pointMap.y) ?? 0;
+      updateParamByName(currentParams, pointMap.x, x0 + dx);
+      updateParamByName(currentParams, pointMap.y, y0 + dy);
       setCode(updateCodeParams(code, def.functionName, currentParams));
       return;
     }
 
-    // Existing behaviors
+    // Helper for generic name-based delta updates
+    const addDelta = (name: string | undefined, delta: number) => {
+      if (!name) return;
+      const base = getParamValueByName(paramSnapshot, name);
+      if (base === null) return;
+      updateParamByName(currentParams, name, base + delta);
+    };
+
+    // 2) Standard body move
     if (dragId === 'body' && def.interaction.position) {
-      updateP(def.interaction.position.x, dx);
-      updateP(def.interaction.position.y, dy);
-    } else if (dragId === 'resize' && selectedCommandId === 'circle') {
-      updateP('r', dx);
-    } else if (dragId.startsWith('resize')) {
-      if (dragId.includes('w')) updateP('w', dx);
-      if (dragId.includes('h')) updateP('h', dy);
-      if (dragId.includes('r')) updateP('r', dx);
-      if (dragId.includes('th')) updateP('th', -dy);
+      addDelta(def.interaction.position.x, dx);
+      addDelta(def.interaction.position.y, dy);
+      setCode(updateCodeParams(code, def.functionName, currentParams));
+      return;
     }
 
-    setCode(updateCodeParams(code, def.functionName, currentParams));
+    // 3) Backward compatible "resize" behaviors
+    if (dragId === 'resize' && selectedCommandId === 'circle') {
+      // old circle behavior
+      addDelta('r', dx);
+      setCode(updateCodeParams(code, def.functionName, currentParams));
+      return;
+    }
+
+    // 4) Generic: if hitTest returns a param name (common pattern), update that param intelligently
+    const paramNames = new Set(def.params.map((p) => p.name));
+    if (paramNames.has(dragId)) {
+      // Heuristics:
+      // - x* => dx, y* => dy
+      // - w/bredd => dx, h/höjd => dy
+      // - r/radie => dx
+      // - angle/vinkel => dx
+      // - thickness/tjocklek/th => -dy (drag up increases)
+      // - size/storlek => -dy
+      if (/^x/i.test(dragId)) addDelta(dragId, dx);
+      else if (/^y/i.test(dragId)) addDelta(dragId, dy);
+      else if (/(^w$|bredd)/i.test(dragId)) addDelta(dragId, dx);
+      else if (/(^h$|höjd)/i.test(dragId)) addDelta(dragId, dy);
+      else if (/(^r$|radie)/i.test(dragId)) addDelta(dragId, dx);
+      else if (/(vinkel|angle)/i.test(dragId)) addDelta(dragId, dx);
+      else if (/(tjocklek|thickness|^th$)/i.test(dragId)) addDelta(dragId, -dy);
+      else if (/(storlek|size)/i.test(dragId)) addDelta(dragId, -dy);
+      else addDelta(dragId, dx);
+
+      setCode(updateCodeParams(code, def.functionName, currentParams));
+      return;
+    }
+
+    // 5) Existing "resize*" composite handles (your old system)
+    if (dragId.startsWith('resize')) {
+      if (dragId.includes('w')) addDelta('w', dx);
+      if (dragId.includes('h')) addDelta('h', dy);
+      if (dragId.includes('r')) addDelta('r', dx);
+      if (dragId.includes('th')) addDelta('th', -dy);
+
+      // text sizing safety
+      if (selectedCommandId === 'text') {
+        // common internal names: size / storlek
+        if (paramNames.has('size')) addDelta('size', -dy);
+        if (paramNames.has('storlek')) addDelta('storlek', -dy);
+      }
+
+      // arc controls safety
+      if (selectedCommandId === 'arc') {
+        // common internal names: angle/vinkel and th/tjocklek/thickness
+        if (paramNames.has('angle')) addDelta('angle', dx);
+        if (paramNames.has('vinkel')) addDelta('vinkel', dx);
+
+        if (paramNames.has('th')) addDelta('th', -dy);
+        if (paramNames.has('tjocklek')) addDelta('tjocklek', -dy);
+        if (paramNames.has('thickness')) addDelta('thickness', -dy);
+      }
+
+      setCode(updateCodeParams(code, def.functionName, currentParams));
+      return;
+    }
   };
 
-  const endDrag = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    } catch {}
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     setDragId(null);
     setDragStart(null);
     setParamSnapshot([]);
@@ -647,8 +742,10 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
                     onChange={(e) => handleCommandSwitch(e.target.value)}
                     className="appearance-none bg-brand-50 text-brand-700 text-xs font-bold pl-3 pr-8 py-1.5 rounded-md border border-brand-100 focus:outline-none cursor-pointer"
                   >
-                    {Object.values(COMMAND_REGISTRY).map(c => (
-                      <option key={c.id} value={c.id}>{c.functionName.toUpperCase()}</option>
+                    {Object.values(COMMAND_REGISTRY).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.functionName.toUpperCase()}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -675,7 +772,7 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
                         top: `${labelTop}px`,
                         fontSize: `${sigFontSize}px`,
                         width: `${item.width}px`,
-                        textAlign: 'center'
+                        textAlign: 'center',
                       }}
                       className="text-white/90 font-medium leading-none"
                     >
@@ -687,7 +784,11 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
 
               <textarea
                 className="w-full h-40 p-4 font-mono bg-transparent text-emerald-400 focus:outline-none resize-none code-scroll relative z-0"
-                style={{ fontSize: `${sigFontSize}px`, paddingTop: `${textareaPadding}px`, lineHeight: '1.5' }}
+                style={{
+                  fontSize: `${sigFontSize}px`,
+                  paddingTop: `${textareaPadding}px`,
+                  lineHeight: '1.5',
+                }}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 onScroll={handleScroll}
@@ -708,6 +809,7 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
               {def.params.map((param) => {
                 const currentVal = parsedParams[param.index];
                 if (currentVal === undefined) return null;
+
                 const tKey = `param_${param.name}`;
                 // @ts-ignore
                 const label = UI_TRANSLATIONS[lang]?.[tKey] || param.label;
@@ -741,7 +843,7 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
                     {param.type === 'string' && (
                       <input
                         type="text"
-                        value={currentVal}
+                        value={currentVal as string}
                         onChange={(e) => handleParamChange(param.index, e.target.value)}
                         className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
                       />
@@ -762,13 +864,13 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
                 height: `${TOTAL_LOGICAL_SIZE}px`,
                 touchAction: 'none',
                 userSelect: 'none',
-                WebkitUserSelect: 'none'
+                WebkitUserSelect: 'none',
               }}
               className="block bg-white rounded-xl"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
-              onPointerUp={endDrag}
-              onPointerCancel={endDrag}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
             />
 
             <div className="absolute top-4 right-4 flex gap-2 pointer-events-none">
