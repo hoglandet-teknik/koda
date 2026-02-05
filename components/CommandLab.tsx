@@ -1,5 +1,3 @@
-/* PASTE EVERYTHING FROM HERE */
-
 import React, { useEffect, useRef, useState, useCallback, useLayoutEffect, useMemo } from 'react';
 import { CommandLabBlock, ParameterDefinition, Language } from '../types';
 import { executeCode, parseCommandParams, updateCodeParams } from '../services/sandbox';
@@ -492,68 +490,43 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
     }
   };
 
-  // ✅ FIX: support point:... and flexible resize:* handles
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const { x, y } = getContentCoordinates(e);
-
-    // Hover cursor feedback (no active drag)
     if (!dragId || !dragStart) {
       if (def && canvasRef.current) {
         const values: Record<string, any> = {};
-        def.params.forEach((p, i) => (values[p.name] = parsedParams[i] ?? p.defaultValue));
+        def.params.forEach((p, i) => values[p.name] = parsedParams[i] ?? p.defaultValue);
         canvasRef.current.style.cursor = def.hitTest(x, y, values) ? 'crosshair' : 'default';
       }
       return;
     }
-
-    const dx = x - dragStart.x;
-    const dy = y - dragStart.y;
-
+    const dx = x - dragStart.x; const dy = y - dragStart.y;
     const currentParams = [...paramSnapshot];
-
     const updateP = (name: string | undefined, delta: number) => {
-      if (!name) return;
-      const pDef = def.params.find((p) => p.name === name);
-      if (!pDef) return;
-      const base = Number(paramSnapshot[pDef.index] ?? 0);
-      currentParams[pDef.index] = Math.round(base + delta);
+      const pDef = def.params.find(p => p.name === name);
+      if (pDef) currentParams[pDef.index] = Math.round(((paramSnapshot[pDef.index] as number) || 0) + delta);
     };
 
-    // 1) Move the whole shape (most commands)
-    if (dragId === 'body' && def.interaction.position) {
-      updateP(def.interaction.position.x, dx);
-      updateP(def.interaction.position.y, dy);
+    if (dragId === 'body' && def.interaction.position) { 
+        updateP(def.interaction.position.x, dx); 
+        updateP(def.interaction.position.y, dy); 
+    } else if (dragId.startsWith('point:') && def.interaction.points) {
+        const pointId = dragId.split(':')[1];
+        const pointDef = def.interaction.points.find(p => p.id === pointId);
+        if (pointDef) {
+            updateP(pointDef.x, dx);
+            updateP(pointDef.y, dy);
+        }
+    } else if (dragId === 'resize' && selectedCommandId === 'circle') {
+        updateP('r', dx);
+    } else if (dragId.startsWith('resize')) {
+        if (dragId.includes('w')) updateP('w', dx);
+        if (dragId.includes('h')) updateP('h', dy);
+        if (dragId.includes('r')) updateP('r', dx);
+        if (dragId.includes('th')) updateP('th', -dy);
+        if (dragId.includes('deg')) updateP('deg', -dx); // Simplified arc handle
+        if (dragId.includes('sz')) updateP('size', dx); // Text size
     }
-    // 2) Move a specific point/vertex (LINE/TRIANGLE etc.)
-    else if (dragId.startsWith('point:') && def.interaction.points) {
-      const pointId = dragId.split(':')[1];
-      const pointDef = def.interaction.points.find((p) => p.id === pointId);
-      if (pointDef) {
-        updateP(pointDef.x, dx);
-        updateP(pointDef.y, dy);
-      }
-    }
-    // 3) Resize / thickness / angle / font size (flexible handle IDs)
-    else if (dragId === 'resize' && selectedCommandId === 'circle') {
-      // legacy circle handle
-      updateP('r', dx);
-    }
-    else if (dragId.startsWith('resize')) {
-      // Rectangle-like (resize:w, resize:h, resize:wh etc.)
-      if (dragId.includes('w')) updateP('w', dx);
-      if (dragId.includes('h')) updateP('h', dy);
-      if (dragId.includes('r')) updateP('r', dx);
-
-      // Text size (resize:sz)
-      if (dragId.includes('sz')) updateP('sz', -dy);
-
-      // Stroke thickness (resize:th)
-      if (dragId.includes('th')) updateP('th', -dy);
-
-      // Arc angle (resize:deg)
-      if (dragId.includes('deg')) updateP('deg', dx);
-    }
-
     setCode(updateCodeParams(code, def.functionName, currentParams));
   };
 
@@ -693,5 +666,3 @@ const CommandLab: React.FC<Props> = ({ block, readOnly = false, lang = 'sv' }) =
 };
 
 export default CommandLab;
-
-/* PASTE EVERYTHING UNTIL HERE */
